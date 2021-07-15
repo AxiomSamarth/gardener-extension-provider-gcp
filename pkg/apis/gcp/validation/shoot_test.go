@@ -15,6 +15,8 @@
 package validation_test
 
 import (
+	"fmt"
+
 	"github.com/gardener/gardener-extension-provider-gcp/pkg/apis/gcp"
 	. "github.com/gardener/gardener-extension-provider-gcp/pkg/apis/gcp/validation"
 
@@ -66,6 +68,69 @@ var _ = Describe("Shoot validation", func() {
 		})
 	})
 
+	Describe("#ValidateWorkers", func() {
+		var workerPath = field.NewPath("spec", "workers")
+
+		It("should return no error because minimum workers are equal to number of zones", func() {
+			workers := []core.Worker{
+				{
+					Name: "worker-test",
+					Machine: core.Machine{
+						Type: "n1-standard-2",
+						Image: &core.ShootMachineImage{
+							Name:    "gardenlinux",
+							Version: "318.8.0",
+						},
+					},
+					Maximum: 6,
+					Minimum: 2,
+					Zones: []string{
+						"europe-west1-c",
+						"europe-west1-d",
+					},
+					Volume: &core.Volume{
+						Type:       getStringPointer("pd-standard"),
+						VolumeSize: "50Gi",
+					},
+				},
+			}
+
+			errorList := ValidateWorkers(workers, workerPath)
+
+			Expect(errorList).To(BeEmpty())
+		})
+
+		It("should return error because minimum workers are not equal to number of zones", func() {
+			workers := []core.Worker{
+				{
+					Name: "worker-test",
+					Machine: core.Machine{
+						Type: "n1-standard-2",
+						Image: &core.ShootMachineImage{
+							Name:    "gardenlinux",
+							Version: "318.8.0",
+						},
+					},
+					Maximum: 6,
+					Minimum: 2,
+					Zones: []string{
+						"europe-west1-b",
+						"europe-west1-c",
+						"europe-west1-d",
+					},
+					Volume: &core.Volume{
+						Type:       getStringPointer("pd-standard"),
+						VolumeSize: "50Gi",
+					},
+				},
+			}
+
+			errorList := ValidateWorkers(workers, workerPath)
+
+			Expect(errorList[0].Error()).To(Equal("spec.workers[0].minimum: Forbidden: minimum value must be >= " + fmt.Sprint(len(workers[0].Zones)) + " if maximum value > 0 (auto scaling to 0 & from 0 is not supported"))
+		})
+	})
+
 })
 
 func validateWorkerConfig(workers []core.Worker, workerConfig *gcp.WorkerConfig) field.ErrorList {
@@ -78,4 +143,8 @@ func validateWorkerConfig(workers []core.Worker, workerConfig *gcp.WorkerConfig)
 	}
 
 	return allErrs
+}
+
+func getStringPointer(s string) *string {
+	return &s
 }

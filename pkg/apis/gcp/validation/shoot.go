@@ -15,6 +15,8 @@
 package validation
 
 import (
+	"fmt"
+
 	"github.com/gardener/gardener/pkg/apis/core"
 	"github.com/gardener/gardener/pkg/apis/core/validation"
 
@@ -50,8 +52,10 @@ func ValidateWorkers(workers []core.Worker, fldPath *field.Path) field.ErrorList
 			continue
 		}
 
-		if worker.Maximum != 0 && worker.Minimum == 0 {
-			allErrs = append(allErrs, field.Forbidden(workerFldPath.Child("minimum"), "minimum value must be > 0 if maximum value > 0 (auto scaling to 0 is not supported)"))
+		// TODO: This check won't be needed after generic support to scale from zero is introduced in CA
+		// Ongoing issue - https://github.com/gardener/autoscaler/issues/27
+		if worker.Maximum != 0 && worker.Minimum < int32(len(worker.Zones)) {
+			allErrs = append(allErrs, field.Forbidden(workerFldPath.Child("minimum"), "minimum value must be >= "+fmt.Sprint(len(worker.Zones))+" if maximum value > 0 (auto scaling to 0 & from 0 is not supported"))
 		}
 	}
 
